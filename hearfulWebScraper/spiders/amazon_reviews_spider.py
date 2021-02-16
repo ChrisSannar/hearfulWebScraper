@@ -7,13 +7,16 @@ CSSSelectors = {
   'product_price' : "#priceblock_ourprice::text",
   'product_sale' : ".priceBlockSavingsString::text", 
   'review_count' : "#acrCustomerReviewText::text",
+  'review_page_link' : 'a[data-hook="see-all-reviews-link-foot"]::attr(href)',
+  'review_list' : '#cm_cr-review_list'
 }
 
 XPathSelectors = {
   'product_brand': '//div[@id="productOverview_feature_div"]/div/table/tr/td[2]/span/text()',
   'next_product_price': '//div[@id="olp_feature_div"]/div[last()]/span[1]/a/span[2]/text()',
-  'descriptions': '//div[@id="featurebullets_feature_div"]//li[not(@id)]/span/text()',
-  'rating': '//span[@class="reviewCountTextLinkedHistogram noUnderline"]/@title'
+  'description': '//div[@id="productDescription"]/p/text()',
+  'specs': '//div[@id="featurebullets_feature_div"]//li[not(@id)]/span/text()',
+  'rating': '//span[@class="reviewCountTextLinkedHistogram noUnderline"]/@title',
 }
 
 headers_list = [
@@ -80,11 +83,17 @@ class AmazonReviewsSpider(scrapy.Spider):
 
   def start_requests(self):
 
-    # Get the list of sites to crawl and parse the data for each
-    urls = get_sites()
+    # ***
+    temp_url = "https://www.amazon.com/GoPro-Fusion-Waterproof-Digital-Spherical/product-reviews/B0792MJLNM/ref=cm_cr_dp_d_show_all_btm?ie=UTF8&reviewerType=all_reviews"
     headers = random.choice(headers_list)
-    for url in urls:
-      yield scrapy.Request(url=url, headers=headers, callback=self.initialParse)
+    yield scrapy.Request(url=temp_url, headers=headers, callback=self.parseReviews, cb_kwargs={'product': "Izza test"})
+    # ***
+    
+    # # Get the list of sites to crawl and parse the data for each
+    # urls = get_sites()
+    # headers = random.choice(headers_list)
+    # for url in urls:
+    #   yield scrapy.Request(url=url, headers=headers, callback=self.initialParse)
   
   # Parses the main site page
   def initialParse(self, response):
@@ -97,11 +106,28 @@ class AmazonReviewsSpider(scrapy.Spider):
     productRating = self.scrapeProductRating(response)
     productReviewCount = int(response.css(CSSSelectors['review_count']).get().split(' ', 1)[0])
 
+    # Organize those values into an AmazonItem
     product = AmazonItem(productName, productBrand, "amazon", productPrice, productSale, productDescrptions, productRating)
     
-    print("-----------------------------------------------")
+    # Wait a minute to make sure we don't get rate limited
+    time.sleep(random.uniform(1.1, 1.6))
+
+    # 
+    review_page = response.css(CSSSelectors['review_page_link']).get()    
+    if review_page is not None:
+      print('***********************************************')
+      print(review_page)
+      print('***********************************************')
+      yield response.follow(review_page, callback=self.parseReviews, cb_kwargs={'product': "Izza test"})
+
+  # Parses the reviews
+  def parseReviews(self, response, product):
+    review_list = response.css(CSSSelectors['review_list']).getall()
+    print('-----------------------------------------------')
+    print('-----------------------------------------------')
     print(product)
-    print("-----------------------------------------------")
+    print('-----------------------------------------------')
+    print('-----------------------------------------------')
 
   # Pull the price from the response and returns it as a float
   def scrapeProductPrice(self, response):
@@ -133,7 +159,14 @@ class AmazonReviewsSpider(scrapy.Spider):
   
   # Pull the descriptions from the response and return a trimed version of them
   def scrapeProductDescrptions(self, response):
-    descriptions = response.xpath(XPathSelectors['descriptions']).getall() 
+    
+    # If there's a description there, use it
+    description = response.xpath(XPathSelectors['description']).get()
+    if description != None:
+      return [description]
+
+    # Otherwise use the specs
+    descriptions = response.xpath(XPathSelectors['specs']).getall() 
     def trim(string):
       return str.strip(string)
     return map(trim, descriptions)

@@ -27,4 +27,4 @@ Useful Selectors
 - Commands:
   * `scrapy crawl <spider>` - Runs the following spider
   * `scrapy crawl <spider> -o <file>` - Sends the Output to the given file
-  * `scrapy shell -s USER_AGENT='<agent>' '<url>' - Sets the shell for the request
+  * `scrapy shell -s USER_AGENT='<agent>' '<url>'` - Sets the shell for the request
