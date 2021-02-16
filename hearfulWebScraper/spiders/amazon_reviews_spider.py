@@ -5,24 +5,36 @@ from datetime import datetime
 
 # The list of our selectors for Amazon 
 CSSSelectors = {
+  #Product Selectors
   'product_title' : "#productTitle::text",
   'product_price' : "#priceblock_ourprice::text",
   'product_sale' : ".priceBlockSavingsString::text", 
-  'review_count' : "#acrCustomerReviewText::text",
+  'product_rating_count' : "#acrCustomerReviewText::text",
   'review_page_link' : 'a[data-hook="see-all-reviews-link-foot"]::attr(href)',
-  'review_list' : '#cm_cr-review_list'
+  
+  # Review Selectors
+  'review_list' : '#cm_cr-review_list',
+  'review_amazon_id' : 'div::attr(id)',
+  'review_title': 'a[data-hook="review-title"] > span::text',
+  'next_review_title': 'span[data-hook="review-title"] > span:first-child::text',
+  'review_rating': 'i[data-hook="review-star-rating"] > span::text',
+  'review_date': 'span[data-hook="review-date"]::text',
 }
 
 XPathSelectors = {
+  # Product Selectors
   'product_brand': '//div[@id="productOverview_feature_div"]/div/table/tr/td[2]/span/text()',
   'next_product_price': '//div[@id="olp_feature_div"]/div[last()]/span[1]/a/span[2]/text()',
-  'description': '//div[@id="productDescription"]/p/text()',
-  'specs': '//div[@id="featurebullets_feature_div"]//li[not(@id)]/span/text()',
-  'reviews': '//div[@id="cm_cr-review_list"]/div[@data-hook="review"]',
-  'rating': '//span[@class="reviewCountTextLinkedHistogram noUnderline"]/@title',
+  'product_description': '//div[@id="productDescription"]/p/text()',
+  'product_specs': '//div[@id="featurebullets_feature_div"]//li[not(@id)]/span/text()',
+  
+  # Review Selectors
+  'reviews_all': '//div[@id="cm_cr-review_list"]/div[@data-hook="review"]',
+  'review_rating': '//span[@class="reviewCountTextLinkedHistogram noUnderline"]/@title',
   'review_next_page': '//div[@id="cm_cr-pagination_bar"]//li[last()]/a/@href',
 }
 
+# List of headers we can use to spoof Amazon
 headers_list = [
     # Firefox 77 Mac
      {
@@ -86,13 +98,6 @@ class AmazonReviewsSpider(scrapy.Spider):
   name = "amazon_reviews"
 
   def start_requests(self):
-
-    # ***
-    # temp_url = "https://www.amazon.com/GoPro-Fusion-Waterproof-Digital-Spherical/product-reviews/B0792MJLNM/ref=cm_cr_getr_d_paging_btm_next_19?ie=UTF8&reviewerType=all_reviews&pageNumber=19"
-    # headers = random.choice(headers_list)
-    # item = AmazonItem("Thing", "Branders", "amazon", 10.0, 5.0, ["wurd"], 4.1)
-    # yield scrapy.Request(url=temp_url, headers=headers, callback=self.parseReviews, cb_kwargs={'product': item})
-    # ***
     
     # Get the list of sites to crawl and parse the data for each
     urls = get_sites()
@@ -102,6 +107,7 @@ class AmazonReviewsSpider(scrapy.Spider):
   
   # Parses the main site page
   def initialParse(self, response):
+    
     # Get each value we're after from the response
     productName = str.strip(response.css(CSSSelectors['product_title']).get())
     productBrand = str.strip(response.xpath(XPathSelectors['product_brand']).get())
@@ -109,7 +115,7 @@ class AmazonReviewsSpider(scrapy.Spider):
     productSale = self.scrapeProductSale(response)
     productDescrptions = self.scrapeProductDescrptions(response)
     productRating = self.scrapeProductRating(response)
-    productReviewCount = int(response.css(CSSSelectors['review_count']).get().split(' ', 1)[0])
+    productReviewCount = int(response.css(CSSSelectors['product_rating_count']).get().split(' ', 1)[0])
 
     # Organize those values into an AmazonItem
     product = AmazonItem(productName, productBrand, "amazon", productPrice, productSale, productDescrptions, productRating)
@@ -126,39 +132,40 @@ class AmazonReviewsSpider(scrapy.Spider):
   def parseReviews(self, response, product):
 
     # Get our list of reviews
-    review_list = response.xpath(XPathSelectors['reviews'])
+    review_list = response.xpath(XPathSelectors['reviews_all'])
     for review in review_list:
 
       # Extract out the items of interest
-      amazon_review_id = review.css('div::attr(id)').get()
-      review_title = review.css('a[data-hook="review-title"] > span::text').get()
+      review_amazon_id = review.css(CSSSelectors['review_amazon_id']).get()
+      review_title = review.css(CSSSelectors['review_title']).get()
       if review_title is None:
-        review_title = review.css('span[data-hook="review-title"] > span:first-child::text').get()
+        review_title = review.css(CSSSelectors['next_review_title']).get()
 
       # double check if we have a review rating
-      review_rating_text = review.css('i[data-hook="review-star-rating"] > span::text').get()
+      review_rating_text = review.css(CSSSelectors['review_rating']).get()
       review_rating = 0.0
       if review_rating_text is not None:
         review_rating = float(review_rating_text[0:review_rating_text.index(" ")])
-    
+
       # The "review-date" has both date and country information
-      review_date_raw = review.css('span[data-hook="review-date"]::text').get()
+      review_date_raw = review.css(CSSSelectors['review_date']).get()
       review_country = str.strip(review_date_raw[(review_date_raw.index("in ") + 3):(review_date_raw.index("on "))])
       review_date = datetime.strptime(review_date_raw[review_date_raw.index("on "):][3:], '%B %d, %Y')
 
       # For the review text, xpath keeps splitting by the <br> tags so we gotta try a work around
       review_text = "" 
-      for line in review.xpath('//div[@id="' + amazon_review_id + '"]//span[@data-hook="review-body"]/span/text()').getall():
+      for line in review.xpath('//div[@id="' + review_amazon_id + '"]//span[@data-hook="review-body"]/span/text()').getall():
         review_text = review_text + line
 
-      # When we're done, organize into an object and print
-      review_obj = AmazonReview(amazon_review_id, review_title, review_rating, review_country, review_text, review_date)
+      # When we're done, organize into an object, add it to our product, and return
+      review_obj = AmazonReview(review_amazon_id, review_title, review_rating, review_country, review_text, review_date)
+      product.addReview(review_obj)
       yield review_obj.toDict()
     
     # once we're done looping through the reviews, then time to get the next page
-    next_page = response.xpath(XPathSelectors['review_next_page']).get()
-    if next_page is not None:
-      yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product})
+    # next_page = response.xpath(XPathSelectors['review_next_page']).get()
+    # if next_page is not None:
+    #   yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product})
 
 
   # Pull the price from the response and returns it as a float
@@ -193,19 +200,19 @@ class AmazonReviewsSpider(scrapy.Spider):
   def scrapeProductDescrptions(self, response):
     
     # If there's a description there, use it
-    description = response.xpath(XPathSelectors['description']).get()
+    description = response.xpath(XPathSelectors['product_description']).get()
     if description != None:
       return [description]
 
-    # Otherwise use the specs
-    descriptions = response.xpath(XPathSelectors['specs']).getall() 
+    # Otherwise use the product_specs
+    descriptions = response.xpath(XPathSelectors['product_specs']).getall() 
     def trim(string):
       return str.strip(string)
     return map(trim, descriptions)
 
   # Pull the rating text from the response and return a float of the rating number
   def scrapeProductRating(self, response):
-    rating = response.xpath(XPathSelectors['rating']).get()
+    rating = response.xpath(XPathSelectors['review_rating']).get()
     return float(rating[0:rating.index(" ")])
 
 
@@ -246,6 +253,9 @@ class AmazonItem:
 
   def getReviews(self):
     return self._reviews
+
+  def addReview(self, review):
+    self._reviews.append(review)
 
   def toDict(self):
     return {
