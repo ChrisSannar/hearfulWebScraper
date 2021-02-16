@@ -1,5 +1,6 @@
 import scrapy
 import random
+import time
 
 CSSSelectors = {
   'product_title' : "#productTitle::text",
@@ -96,16 +97,10 @@ class AmazonReviewsSpider(scrapy.Spider):
     productRating = self.scrapeProductRating(response)
     productReviewCount = int(response.css(CSSSelectors['review_count']).get().split(' ', 1)[0])
 
+    product = AmazonItem(productName, productBrand, "amazon", productPrice, productSale, productDescrptions, productRating)
+    
     print("-----------------------------------------------")
-    print({
-      productName,
-      productBrand,
-      productPrice,
-      productSale,
-      productDescrptions,
-      productRating,
-      productReviewCount,
-    })
+    print(product)
     print("-----------------------------------------------")
 
   # Pull the price from the response and returns it as a float
@@ -162,7 +157,7 @@ class AmazonItem:
     self._rating = rating
     self._reviews = reviews
 
-  # Follow Encapsulation
+  # Encapsulation
   def getName(self):
     return self._name
 
@@ -175,5 +170,17 @@ class AmazonItem:
   def getPrice(self):
     return self._price
 
+  def getSalePrice(self):
+    return self._sale
+
+  def getDescriptions(self):
+    return self._descriptions
+
   def getRating(self):
     return self._rating
+
+  def getReviews(self):
+    return self._reviews
+  
+  def __str__(self):
+    return "{name} ({brand}) - ${price} (${sale}) {rating}/5 ".format(name=self._name, brand=self._brand, price=self._price, sale=self._sale, rating=self._rating)
