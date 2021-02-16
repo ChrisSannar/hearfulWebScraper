@@ -20,6 +20,19 @@
   * `scrapy crawl <spider>` - Runs the following spider
   * `scrapy crawl <spider> -o <file>` - Sends the Output to the given file
   * `scrapy shell -s USER_AGENT='<agent>' '<url>'` - Sets the shell for the request
+
+- Docker
+  1. Pull latest image - `docker pull mongo:latest`
+  2. Change the `user`, `pwd`, and `db` in the `mongo-init.js` file to your specifications
+  3. Change the environment variables in `docker-compose.yml` file to match those in `mongo-init.js`
+  4. *Optional* - In `docker-compose.yml`, change the `mongo-volume` to a different location 
+  5. `docker-compose up -d` - Runs the docker container in the background.
+  6. Access container with `docker exec -it <container-name> bash`
+  7. Run the code in `init-mongo.js` in the shell (after you've made the changes to user/pwd/db)
+
+  
+  
+
 - Other
 ```
 function getElementByXpath(path) {

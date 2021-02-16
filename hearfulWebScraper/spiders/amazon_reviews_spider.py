@@ -107,7 +107,7 @@ class AmazonReviewsSpider(scrapy.Spider):
   
   # Parses the main site page
   def initialParse(self, response):
-    
+
     # Get each value we're after from the response
     productName = str.strip(response.css(CSSSelectors['product_title']).get())
     productBrand = str.strip(response.xpath(XPathSelectors['product_brand']).get())
@@ -163,9 +163,9 @@ class AmazonReviewsSpider(scrapy.Spider):
       yield review_obj.toDict()
     
     # once we're done looping through the reviews, then time to get the next page
-    # next_page = response.xpath(XPathSelectors['review_next_page']).get()
-    # if next_page is not None:
-    #   yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product})
+    next_page = response.xpath(XPathSelectors['review_next_page']).get()
+    if next_page is not None:
+      yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product})
 
 
   # Pull the price from the response and returns it as a float
