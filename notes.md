@@ -28,3 +28,9 @@ Useful Selectors
   * `scrapy crawl <spider>` - Runs the following spider
   * `scrapy crawl <spider> -o <file>` - Sends the Output to the given file
   * `scrapy shell -s USER_AGENT='<agent>' '<url>'` - Sets the shell for the request
+- Other
+```
+function getElementByXpath(path) {
+  return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+}
+```
