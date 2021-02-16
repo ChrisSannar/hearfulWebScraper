@@ -2,7 +2,9 @@
 
 ## Instructions
 
-1. List the sites on each line `site_list.txt`
+1. List the amazon product pages on each line `site_list.txt`
+  * Ex: "https://www.amazon.com/GoPro-Fusion-Waterproof-Digital-Spherical/dp/B0792MJLNM/ref=sr_1_3?crid=D3C7EDM435E7&keywords=gopro%2Bfusion&qid=1550442454&s=electronics&sprefix=GoPro%2BFu%2Celectronics%2C1332&sr=1-3&th=1"
+2. Run the script with scrapy `scrapy crawl amazon_reviews -o <json-file-path>`
 
 ## Problems & Solutions
 

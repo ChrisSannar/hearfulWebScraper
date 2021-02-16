@@ -20,6 +20,7 @@ XPathSelectors = {
   'specs': '//div[@id="featurebullets_feature_div"]//li[not(@id)]/span/text()',
   'reviews': '//div[@id="cm_cr-review_list"]/div[@data-hook="review"]',
   'rating': '//span[@class="reviewCountTextLinkedHistogram noUnderline"]/@title',
+  'review_next_page': '//div[@id="cm_cr-pagination_bar"]//li[last()]/a/@href',
 }
 
 headers_list = [
@@ -87,17 +88,17 @@ class AmazonReviewsSpider(scrapy.Spider):
   def start_requests(self):
 
     # ***
-    temp_url = "https://www.amazon.com/GoPro-Fusion-Waterproof-Digital-Spherical/product-reviews/B0792MJLNM/ref=cm_cr_dp_d_show_all_btm?ie=UTF8&reviewerType=all_reviews"
-    headers = random.choice(headers_list)
-    item = AmazonItem("Thing", "Branders", "amazon", 10.0, 5.0, ["wurd"], 4.1)
-    yield scrapy.Request(url=temp_url, headers=headers, callback=self.parseReviews, cb_kwargs={'product': item})
+    # temp_url = "https://www.amazon.com/GoPro-Fusion-Waterproof-Digital-Spherical/product-reviews/B0792MJLNM/ref=cm_cr_getr_d_paging_btm_next_19?ie=UTF8&reviewerType=all_reviews&pageNumber=19"
+    # headers = random.choice(headers_list)
+    # item = AmazonItem("Thing", "Branders", "amazon", 10.0, 5.0, ["wurd"], 4.1)
+    # yield scrapy.Request(url=temp_url, headers=headers, callback=self.parseReviews, cb_kwargs={'product': item})
     # ***
     
-    # # Get the list of sites to crawl and parse the data for each
-    # urls = get_sites()
-    # headers = random.choice(headers_list)
-    # for url in urls:
-    #   yield scrapy.Request(url=url, headers=headers, callback=self.initialParse)
+    # Get the list of sites to crawl and parse the data for each
+    urls = get_sites()
+    headers = random.choice(headers_list)
+    for url in urls:
+      yield scrapy.Request(url=url, headers=headers, callback=self.initialParse)
   
   # Parses the main site page
   def initialParse(self, response):
@@ -116,10 +117,10 @@ class AmazonReviewsSpider(scrapy.Spider):
     # Wait a minute to make sure we don't get rate limited
     time.sleep(random.uniform(1.1, 1.6))
 
-    # 
+    # Once we have the product information set up, go ahead and pull the reviews
     review_page = response.css(CSSSelectors['review_page_link']).get()    
     if review_page is not None:
-      yield response.follow(review_page, callback=self.parseReviews, cb_kwargs={'product': "Izza test"})
+      yield response.follow(review_page, callback=self.parseReviews, cb_kwargs={'product': product})
 
   # Parses the reviews
   def parseReviews(self, response, product):
@@ -131,20 +132,34 @@ class AmazonReviewsSpider(scrapy.Spider):
       # Extract out the items of interest
       amazon_review_id = review.css('div::attr(id)').get()
       review_title = review.css('a[data-hook="review-title"] > span::text').get()
-      review_rating_text = review.css('i[data-hook="review-star-rating"] > span::text').get()
-      review_rating = float(review_rating_text[0:review_rating_text.index(" ")])
-      review_date = review.css('span[data-hook="review-date"]::text').get()
+      if review_title is None:
+        review_title = review.css('span[data-hook="review-title"] > span:first-child::text').get()
 
-      # Remove the date annotation
-      review_date = datetime.strptime(review_date[review_date.index("on "):][3:], '%B %d, %Y')
+      # double check if we have a review rating
+      review_rating_text = review.css('i[data-hook="review-star-rating"] > span::text').get()
+      review_rating = 0.0
+      if review_rating_text is not None:
+        review_rating = float(review_rating_text[0:review_rating_text.index(" ")])
+    
+      # The "review-date" has both date and country information
+      review_date_raw = review.css('span[data-hook="review-date"]::text').get()
+      review_country = str.strip(review_date_raw[(review_date_raw.index("in ") + 3):(review_date_raw.index("on "))])
+      review_date = datetime.strptime(review_date_raw[review_date_raw.index("on "):][3:], '%B %d, %Y')
 
       # For the review text, xpath keeps splitting by the <br> tags so we gotta try a work around
       review_text = "" 
       for line in review.xpath('//div[@id="' + amazon_review_id + '"]//span[@data-hook="review-body"]/span/text()').getall():
         review_text = review_text + line
 
-      review_obj = AmazonReview(amazon_review_id, review_title, review_rating, review_text, review_date)
-      print(review_obj)
+      # When we're done, organize into an object and print
+      review_obj = AmazonReview(amazon_review_id, review_title, review_rating, review_country, review_text, review_date)
+      yield review_obj.toDict()
+    
+    # once we're done looping through the reviews, then time to get the next page
+    next_page = response.xpath(XPathSelectors['review_next_page']).get()
+    if next_page is not None:
+      yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product})
+
 
   # Pull the price from the response and returns it as a float
   def scrapeProductPrice(self, response):
@@ -231,6 +246,16 @@ class AmazonItem:
 
   def getReviews(self):
     return self._reviews
+
+  def toDict(self):
+    return {
+      'name': self._name,
+      'brand': self._brand,
+      'source': self._source,
+      'price': self._price,
+      'sale': self._sale,
+      'rating': self._rating,
+    }
   
   def __str__(self):
     return "{name} ({brand}) - ${price} (${sale}) {rating}/5 ".format(name=self._name, brand=self._brand, price=self._price, sale=self._sale, rating=self._rating)
@@ -238,10 +263,11 @@ class AmazonItem:
 # A review for a given AmazonItem
 class AmazonReview:
 
-  def __init__(self, id="", title="", rating=0.0, text="", date=None):
+  def __init__(self, id="", title="", rating=0.0, country="", text="", date=None):
     self._id=id
     self._title=title
     self._rating=rating
+    self._country=country
     self._text=text
     self._date=date
 
@@ -259,6 +285,19 @@ class AmazonReview:
 
   def getDate(self):
     return self._date
+  
+  def getCountry(self):
+    return self._country
+
+  def toDict(self):
+    return {
+      'id': self._id,
+      'title': self._title,
+      'rating': self._rating,
+      'country': self._country,
+      'text': self._text,
+      'date': self._date,
+    }
 
   def __str__(self):
-    return "{id}: {title} ({rating}) {date} - {text}".format(id=self._id, title=self._title, rating=self._rating, date=self._date, text=self._text)
+    return "{id}: {title} <{country}> ({rating}) {date} - {text}".format(id=self._id, title=self._title, country=self._country, rating=self._rating, date=self._date, text=self._text)
