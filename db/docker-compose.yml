@@ -1,4 +1,4 @@
-version: '3' # This can be changed to the latest
+version: '3' # This can be changed to the latest docker-compose version
 services:
   database:
     image: 'mongo'

@@ -3,6 +3,8 @@ import random
 import time
 from datetime import datetime
 
+from scrapy.utils.project import get_project_settings
+
 import pymongo
 
 # The list of our selectors for Amazon 
@@ -103,37 +105,26 @@ headers_list = [
     }
 ]
 
-# Grab this list of sites to crawl
-site_list_path = "./site_list.txt"
-def get_sites():
-  with open(site_list_path) as f:
-    siteList = f.read()
-    return siteList.splitlines()
-
-# Mongo information only to this file
-MONGODB_URI = "mongodb://username:password@localhost:27017"
-MONGODB_DB  = "amazon-scraper-db"
-
+# A spider that scrape Amazon product information and reviews
 class AmazonReviewsSpider(scrapy.Spider):
   name = "amazon_reviews"
 
-  # Tie the MONGO information to the spider itself
+  # Tie the MONGO client and db to the spider itself
   def __init__(self):
-    self.MONGODB_PRODUCTS_COLLECTION  = "products"
-    self.MONGODB_REVIEWS_COLLECTION  = "reviews"
-    self.client = pymongo.MongoClient(MONGODB_URI)
-    self.db = self.client[MONGODB_DB]
+    self.settings = get_project_settings()
+    self.client = pymongo.MongoClient(self.settings.get('MONGODB_URI'))
+    self.db = self.client[self.settings.get('MONGODB_DB')]
 
   # The First request function
   def start_requests(self):
     
     # Get the list of sites to crawl and parse the data for each
-    urls = get_sites()
-    headers = random.choice(headers_list)
+    urls = self.settings.get('AMAZON_PRODUCT_URLS')
+    self.headers = random.choice(headers_list)  # Random header to spoof amazon servers
     for url in urls:
-      yield scrapy.Request(url=url, headers=headers, callback=self.initialParse)
+      yield scrapy.Request(url=url, headers=self.headers, callback=self.initialParse)
   
-  # Parses the main site page
+  # Parses the main product page
   def initialParse(self, response):
 
     # Get each value we're after from the response
@@ -146,10 +137,10 @@ class AmazonReviewsSpider(scrapy.Spider):
     productReviewCount = int(response.css(CSSSelectors['product_rating_count']).get().split(' ', 1)[0])
 
     # Organize those values into an AmazonItem
-    product = AmazonItem(productName, productBrand, "amazon", productPrice, productSale, productDescrptions, productRating)
+    product = AmazonItem(productName, productBrand, "Amazon", productPrice, productSale, productDescrptions, productRating)
 
     # The mongo_id of the product to be passed on into the reviews
-    mongo_product_id = self.db[self.MONGODB_PRODUCTS_COLLECTION].insert_one(product.toDict()).inserted_id
+    mongo_product_id = self.db[self.settings.get('MONGODB_PRODUCTS_COLLECTION')].insert_one(product.toDict()).inserted_id
 
     # Wait a minute to make sure we don't get rate limited
     time.sleep(random.uniform(0.9, 1.2))
