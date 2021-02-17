@@ -122,7 +122,7 @@ class AmazonReviewsSpider(scrapy.Spider):
     urls = self.settings.get('AMAZON_PRODUCT_URLS')
     self.headers = random.choice(headers_list)  # Random header to spoof amazon servers
     for url in urls:
-      yield scrapy.Request(url=url, headers=headers, callback=self.initialParse)
+      yield scrapy.Request(url=url, headers=self.headers, callback=self.initialParse)
   
   # Parses the main product page
   def initialParse(self, response):
@@ -137,7 +137,7 @@ class AmazonReviewsSpider(scrapy.Spider):
     productReviewCount = int(response.css(CSSSelectors['product_rating_count']).get().split(' ', 1)[0])
 
     # Organize those values into an AmazonItem
-    product = AmazonItem(productName, productBrand, "amazon", productPrice, productSale, productDescrptions, productRating)
+    product = AmazonItem(productName, productBrand, "Amazon", productPrice, productSale, productDescrptions, productRating)
 
     # The mongo_id of the product to be passed on into the reviews
     mongo_product_id = self.db[self.settings.get('MONGODB_PRODUCTS_COLLECTION')].insert_one(product.toDict()).inserted_id
