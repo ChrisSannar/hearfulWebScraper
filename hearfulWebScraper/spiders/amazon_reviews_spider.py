@@ -197,7 +197,7 @@ class AmazonReviewsSpider(scrapy.Spider):
     next_page = response.xpath(XPathSelectors['review_next_page']).get()
     if next_page is not None:
       time.sleep(random.uniform(0.6, 0.922))
-      yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product})
+      yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product, 'product_id': product_id})
 
 
   # Pull the price from the response and returns it as a float
