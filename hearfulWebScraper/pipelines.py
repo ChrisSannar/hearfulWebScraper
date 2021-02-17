@@ -15,9 +15,8 @@ class AmazonItemsMongoDBPipeline:
     self.settings = get_project_settings()
     pass
 
-  # Make sure to close the connection when we're done
+  # Make sure to close the connection when we're done and let the spider handle it's own connection
   def close_spider(self, spider):
-    # self.client.close()
     spider.client.close()
 
   # Simply inserts the item when we're finished
