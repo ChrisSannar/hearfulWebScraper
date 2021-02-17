@@ -12,9 +12,17 @@ BOT_NAME = 'hearfulWebScraper'
 SPIDER_MODULES = ['hearfulWebScraper.spiders']
 NEWSPIDER_MODULE = 'hearfulWebScraper.spiders'
 
+# All the Mongodb environment variables
+# The following values are examples of values input
 MONGODB_URI = "mongodb://username:password@localhost:27017"
 MONGODB_DB  = "amazon-scraper-db"
 MONGODB_REVIEWS_COLLECTION  = "reviews"
+MONGODB_PRODUCTS_COLLECTION = "products"
+
+# The list of amazon product URLS we want to crawl
+AMAZON_PRODUCT_URLS = [
+  "https://www.amazon.com/GoPro-Fusion-Waterproof-Digital-Spherical/dp/B0792MJLNM/ref=sr_1_3?crid=D3C7EDM435E7&keywords=gopro%2Bfusion&qid=1550442454&s=electronics&sprefix=GoPro%2BFu%2Celectronics%2C1332&sr=1-3&th=1",
+]
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'hearfulWebScraper (+http://www.yourdomain.com)'
@@ -67,8 +75,7 @@ ROBOTSTXT_OBEY = True
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
   'hearfulWebScraper.pipelines.HearfulwebscraperPipeline': 300,
-  # 'hearfulWebScraper.pipelines.QuotesMongoDBPipeline': 400,
-  'hearfulWebScraper.pipelines.AmazonItemsMongoDBPipeline': 500,
+  'hearfulWebScraper.pipelines.AmazonItemsMongoDBPipeline': 400,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
