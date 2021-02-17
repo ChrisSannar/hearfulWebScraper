@@ -3,9 +3,17 @@ import random
 import time
 from datetime import datetime
 
+# Environment Variables
 from scrapy.utils.project import get_project_settings
 
+# MongoDB
 import pymongo
+
+# Our classes we're using
+from hearfulWebScraper.classes.AmazonItem import AmazonItem
+from hearfulWebScraper.classes.AmazonReview import AmazonReview
+
+from hearfulWebScraper.util import *
 
 # The list of our selectors for Amazon 
 CSSSelectors = {
@@ -38,73 +46,6 @@ XPathSelectors = {
   'review_next_page': '//div[@id="cm_cr-pagination_bar"]//li[last()]/a/@href',
 }
 
-# List of headers we can use to spoof Amazon
-headers_list = [
-    # Firefox 77 Mac
-     {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:77.0) Gecko/20100101 Firefox/77.0",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Referer": "https://www.google.com/",
-        "DNT": "1",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1"
-    },
-    # Firefox 77 Windows
-    {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Referer": "https://www.google.com/",
-        "DNT": "1",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1"
-    },
-    # Chrome 83 Mac
-    {
-        "Connection": "keep-alive",
-        "DNT": "1",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Dest": "document",
-        "Referer": "https://www.google.com/",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8"
-    },
-    # Chrome 83 Windows 
-    {
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-User": "?1",
-        "Sec-Fetch-Dest": "document",
-        "Referer": "https://www.google.com/",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Accept-Language": "en-US,en;q=0.9"
-    },
-    # Chrome Personal
-    {
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-User": "?1",
-        "Sec-Fetch-Dest": "document",
-        "Referer": "https://www.google.com/",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Accept-Language": "en-US,en;q=0.9"
-    }
-]
-
 # A spider that scrape Amazon product information and reviews
 class AmazonReviewsSpider(scrapy.Spider):
   name = "amazon_reviews"
@@ -128,13 +69,13 @@ class AmazonReviewsSpider(scrapy.Spider):
   def initialParse(self, response):
 
     # Get each value we're after from the response
-    productName = str.strip(response.css(CSSSelectors['product_title']).get())
-    productBrand = str.strip(response.xpath(XPathSelectors['product_brand']).get())
-    productPrice = self.scrapeProductPrice(response)
-    productSale = self.scrapeProductSale(response)
-    productDescrptions = self.scrapeProductDescrptions(response)
-    productRating = self.scrapeProductRating(response)
-    productReviewCount = int(response.css(CSSSelectors['product_rating_count']).get().split(' ', 1)[0])
+    productName = AmazonItem.scrapeProductName(response)
+    productBrand = AmazonItem.scrapeProductBrand(response)
+    productPrice = AmazonItem.scrapeProductPrice(response)
+    productSale = AmazonItem.scrapeProductSale(response)
+    productDescrptions = AmazonItem.scrapeProductDescrptions(response)
+    productRating = AmazonItem.scrapeProductRating(response)
+    productReviewCount = AmazonItem.scrapeProductReviewCount(response)
 
     # Organize those values into an AmazonItem
     product = AmazonItem(productName, productBrand, "Amazon", productPrice, productSale, productDescrptions, productRating)
@@ -185,154 +126,55 @@ class AmazonReviewsSpider(scrapy.Spider):
       yield review_obj.toDict()
     
     # # once we're done looping through the reviews, then time to get the next page
-    next_page = response.xpath(XPathSelectors['review_next_page']).get()
-    if next_page is not None:
-      time.sleep(random.uniform(0.6, 0.922))
-      yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product, 'product_id': product_id})
+    # next_page = response.xpath(XPathSelectors['review_next_page']).get()
+    # if next_page is not None:
+    #   time.sleep(random.uniform(0.6, 0.922))
+    #   yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product, 'product_id': product_id})
 
 
-  # Pull the price from the response and returns it as a float
-  def scrapeProductPrice(self, response):
+  # # Pull the price from the response and returns it as a float
+  # def scrapeProductPrice(self, response):
     
-    # See if it's there initially
-    productPrice = response.css(CSSSelectors['product_price']).get()
+  #   # See if it's there initially
+  #   productPrice = response.css(CSSSelectors['product_price']).get()
 
-    # If we don't find it using css, try xpath
-    if productPrice == None:
-      productPrice = response.xpath(XPathSelectors['next_product_price']).get()
+  #   # If we don't find it using css, try xpath
+  #   if productPrice == None:
+  #     productPrice = response.xpath(XPathSelectors['next_product_price']).get()
 
-    # If we still can't find it, then just give a negative value
-    if productPrice == None:
-      productPrice = "$-1.0"
+  #   # If we still can't find it, then just give a negative value
+  #   if productPrice == None:
+  #     productPrice = "$-1.0"
     
-    return float(productPrice[1:])
+  #   return float(productPrice[1:])
 
   # Pull the sale savings from the response and returns it as a float
-  def scrapeProductSale(self, response):
-    productSale = response.css(CSSSelectors['product_sale']).get()
+  # def scrapeProductSale(self, response):
+  #   productSale = response.css(CSSSelectors['product_sale']).get()
 
-    # If there is no product sale, return -1.0
-    if productSale == None:
-      return -1.0
-    else:
-      # Just pull the amount from the string we got
-      cleaned = str.strip(productSale) 
-      return float(cleaned[1:cleaned.index(" ")])
+  #   # If there is no product sale, return -1.0
+  #   if productSale == None:
+  #     return -1.0
+  #   else:
+  #     # Just pull the amount from the string we got
+  #     cleaned = str.strip(productSale) 
+  #     return float(cleaned[1:cleaned.index(" ")])
   
   # Pull the descriptions from the response and return a trimed version of them
-  def scrapeProductDescrptions(self, response):
+  # def scrapeProductDescrptions(self, response):
     
-    # If there's a description there, use it
-    description = response.xpath(XPathSelectors['product_description']).get()
-    if description != None:
-      return [description]
+  #   # If there's a description there, use it
+  #   description = response.xpath(XPathSelectors['product_description']).get()
+  #   if description != None:
+  #     return [description]
 
-    # Otherwise use the product_specs
-    descriptions = response.xpath(XPathSelectors['product_specs']).getall() 
-    def trim(string):
-      return str.strip(string)
-    return map(trim, descriptions)
+  #   # Otherwise use the product_specs
+  #   descriptions = response.xpath(XPathSelectors['product_specs']).getall() 
+  #   def trim(string):
+  #     return str.strip(string)
+  #   return map(trim, descriptions)
 
   # Pull the rating text from the response and return a float of the rating number
-  def scrapeProductRating(self, response):
-    rating = response.xpath(XPathSelectors['review_rating']).get()
-    return float(rating[0:rating.index(" ")])
-
-
-# A single amazon item we are reviewing
-class AmazonItem:
-
-  def __init__(self, name="", brand="", source="", price=0.0, sale=0.0, descriptions=[], rating=0.0, reviews=[]):
-    self._name = name
-    self._brand = brand
-    self._source = source
-    self._price = price
-    self._sale = sale
-    self._descriptions = descriptions
-    self._rating = rating
-    self._reviews = reviews
-
-  # Encapsulation
-  def getName(self):
-    return self._name
-
-  def getBrand(self):
-    return self._brand
-
-  def getSource(self):
-    return self._source
-
-  def getPrice(self):
-    return self._price
-
-  def getSalePrice(self):
-    return self._sale
-
-  def getDescriptions(self):
-    return self._descriptions
-
-  def getRating(self):
-    return self._rating
-
-  def getReviews(self):
-    return self._reviews
-
-  def addReview(self, review):
-    self._reviews.append(review)
-
-  def toDict(self):
-    return {
-      'name': self._name,
-      'brand': self._brand,
-      'source': self._source,
-      'price': self._price,
-      'sale': self._sale,
-      'rating': self._rating,
-    }
-  
-  def __str__(self):
-    return "{name} ({brand}) - ${price} (${sale}) {rating}/5 ".format(name=self._name, brand=self._brand, price=self._price, sale=self._sale, rating=self._rating)
-
-# A review for a given AmazonItem
-class AmazonReview:
- 
-  def __init__(self, id="", product_id="", title="", rating=0.0, country="", text="", date=None):
-    self._id=id
-    self._product_id = product_id
-    self._title=title
-    self._rating=rating
-    self._country=country
-    self._text=text
-    self._date=date
-
-  def getAmazonId(self):
-    return self._id
-
-  def getTitle(self):
-    return self._title
-
-  def getRating(self):
-    return self._rating
-
-  def getText(self):
-    return self._text
-
-  def getDate(self):
-    return self._date
-  
-  def getCountry(self):
-    return self._country
-
-  def toDict(self):
-    return {
-      'id': self._id,
-      'product_id': self._product_id,
-      'title': self._title,
-      'rating': self._rating,
-      'country': self._country,
-      'text': self._text,
-      'date': self._date,
-    }
-
-  def __str__(self):
-    return "{id}: {title} <{country}> ({rating}) {date} - {text}".format(id=self._id, title=self._title, country=self._country, rating=self._rating, date=self._date, text=self._text)
+  # def scrapeProductRating(self, response):
+  #   rating = response.xpath(XPathSelectors['review_rating']).get()
+  #   return float(rating[0:rating.index(" ")])
