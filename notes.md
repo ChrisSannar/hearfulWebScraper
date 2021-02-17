@@ -28,11 +28,12 @@
   4. *Optional* - In `docker-compose.yml`, change the `mongo-volume` to a different location 
   5. `docker-compose up -d` - Runs the docker container in the background.
   6. Access container with `docker exec -it <container-name> bash`
-  7. Run the code in `init-mongo.js` in the shell (after you've made the changes to user/pwd/db)
+  7. Start the mongo shell in bash - `mongo -u <username>` and enter your `<password>`
+  8. Run the code in `init-mongo.js` in the shell
+  9. Create your database and add a temporary collection to it - `use <db-name>`, `db.createCollection("<temp-name>")`
+  10. Run the test-db.py file to test your connection (be sure to install necessary libraries and change collection names accordingly)
 
   
-  
-
 - Other
 ```
 function getElementByXpath(path) {

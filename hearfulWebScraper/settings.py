@@ -12,6 +12,12 @@ BOT_NAME = 'hearfulWebScraper'
 SPIDER_MODULES = ['hearfulWebScraper.spiders']
 NEWSPIDER_MODULE = 'hearfulWebScraper.spiders'
 
+MONGODB_SERVER = "localhost"
+MONGODB_PORT = 27017
+# MONGODB_DB  = "amazon-scraper-db"
+# MONGODB_COLLECTION  = "reviews"
+MONGODB_DB  = "test"
+MONGODB_COLLECTION  = "testing"
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'hearfulWebScraper (+http://www.yourdomain.com)'
@@ -62,9 +68,10 @@ ROBOTSTXT_OBEY = True
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    'hearfulWebScraper.pipelines.HearfulwebscraperPipeline': 300,
-#}
+ITEM_PIPELINES = {
+  'hearfulWebScraper.pipelines.HearfulwebscraperPipeline': 300,
+  # 'hearfulWebScraper.pipelines.MongoDBPipeline': 400,
+}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
