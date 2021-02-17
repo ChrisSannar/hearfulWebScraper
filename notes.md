@@ -13,6 +13,10 @@
 - Amazon temporarily allowed access to python bots, but eventually blocked us. That was fixed by setting a different user agent, however we'll have to changed it every now and then to prevent Amazon from figuring out we're using a bot
   * 'User-Agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"
 - Where can we fetch the actual review number? I don't see it on the main page, however I do match the 'global review count' on the review page. Also a note, I think a 'rating' is different from a 'review'.
+- The Mongo db information needs to be pullable from one location. For now there are three spots that need changing
+  * `db/docker-compose.yml`
+  * `init-mongo.js`
+  * `hearfulWebScraper/spiders/amazon_reviews_spider.py`
 
 ## Additional Notes
 
@@ -26,6 +30,7 @@
   2. Change the `user`, `pwd`, and `db` in the `mongo-init.js` file to your specifications
   3. Change the environment variables in `docker-compose.yml` file to match those in `mongo-init.js`
   4. *Optional* - In `docker-compose.yml`, change the `mongo-volume` to a different location 
+    * NOTE: if you don't change this address, it'll create the `mongo-volume` in that same folder
   5. `docker-compose up -d` - Runs the docker container in the background.
   6. Access container with `docker exec -it <container-name> bash`
   7. Start the mongo shell in bash - `mongo -u <username>` and enter your `<password>`
