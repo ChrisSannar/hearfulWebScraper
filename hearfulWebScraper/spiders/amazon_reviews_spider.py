@@ -3,6 +3,8 @@ import random
 import time
 from datetime import datetime
 
+import pymongo
+
 # The list of our selectors for Amazon 
 CSSSelectors = {
   #Product Selectors
@@ -84,6 +86,20 @@ headers_list = [
         "Referer": "https://www.google.com/",
         "Accept-Encoding": "gzip, deflate, br",
         "Accept-Language": "en-US,en;q=0.9"
+    },
+    # Chrome Personal
+    {
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-User": "?1",
+        "Sec-Fetch-Dest": "document",
+        "Referer": "https://www.google.com/",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-US,en;q=0.9"
     }
 ]
 
@@ -94,9 +110,21 @@ def get_sites():
     siteList = f.read()
     return siteList.splitlines()
 
+# Mongo information only to this file
+MONGODB_URI = "mongodb://username:password@localhost:27017"
+MONGODB_DB  = "amazon-scraper-db"
+
 class AmazonReviewsSpider(scrapy.Spider):
   name = "amazon_reviews"
 
+  # Tie the MONGO information to the spider itself
+  def __init__(self):
+    self.MONGODB_PRODUCTS_COLLECTION  = "products"
+    self.MONGODB_REVIEWS_COLLECTION  = "reviews"
+    self.client = pymongo.MongoClient(MONGODB_URI)
+    self.db = self.client[MONGODB_DB]
+
+  # The First request function
   def start_requests(self):
     
     # Get the list of sites to crawl and parse the data for each
@@ -107,7 +135,7 @@ class AmazonReviewsSpider(scrapy.Spider):
   
   # Parses the main site page
   def initialParse(self, response):
-    
+
     # Get each value we're after from the response
     productName = str.strip(response.css(CSSSelectors['product_title']).get())
     productBrand = str.strip(response.xpath(XPathSelectors['product_brand']).get())
@@ -119,17 +147,20 @@ class AmazonReviewsSpider(scrapy.Spider):
 
     # Organize those values into an AmazonItem
     product = AmazonItem(productName, productBrand, "amazon", productPrice, productSale, productDescrptions, productRating)
-    
+
+    # The mongo_id of the product to be passed on into the reviews
+    mongo_product_id = self.db[self.MONGODB_PRODUCTS_COLLECTION].insert_one(product.toDict()).inserted_id
+
     # Wait a minute to make sure we don't get rate limited
-    time.sleep(random.uniform(1.1, 1.6))
+    time.sleep(random.uniform(0.9, 1.2))
 
     # Once we have the product information set up, go ahead and pull the reviews
     review_page = response.css(CSSSelectors['review_page_link']).get()    
     if review_page is not None:
-      yield response.follow(review_page, callback=self.parseReviews, cb_kwargs={'product': product})
+      yield response.follow(review_page, callback=self.parseReviews, cb_kwargs={'product': product, 'product_id': mongo_product_id})
 
   # Parses the reviews
-  def parseReviews(self, response, product):
+  def parseReviews(self, response, product, product_id):
 
     # Get our list of reviews
     review_list = response.xpath(XPathSelectors['reviews_all'])
@@ -158,14 +189,15 @@ class AmazonReviewsSpider(scrapy.Spider):
         review_text = review_text + line
 
       # When we're done, organize into an object, add it to our product, and return
-      review_obj = AmazonReview(review_amazon_id, review_title, review_rating, review_country, review_text, review_date)
+      review_obj = AmazonReview(review_amazon_id, product_id, review_title, review_rating, review_country, review_text, review_date)
       product.addReview(review_obj)
       yield review_obj.toDict()
     
-    # once we're done looping through the reviews, then time to get the next page
-    # next_page = response.xpath(XPathSelectors['review_next_page']).get()
-    # if next_page is not None:
-    #   yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product})
+    # # once we're done looping through the reviews, then time to get the next page
+    next_page = response.xpath(XPathSelectors['review_next_page']).get()
+    if next_page is not None:
+      time.sleep(random.uniform(0.6, 0.922))
+      yield response.follow(next_page, callback=self.parseReviews, cb_kwargs={'product': product})
 
 
   # Pull the price from the response and returns it as a float
@@ -272,9 +304,10 @@ class AmazonItem:
 
 # A review for a given AmazonItem
 class AmazonReview:
-
-  def __init__(self, id="", title="", rating=0.0, country="", text="", date=None):
+ 
+  def __init__(self, id="", product_id="", title="", rating=0.0, country="", text="", date=None):
     self._id=id
+    self._product_id = product_id
     self._title=title
     self._rating=rating
     self._country=country
@@ -302,6 +335,7 @@ class AmazonReview:
   def toDict(self):
     return {
       'id': self._id,
+      'product_id': self._product_id,
       'title': self._title,
       'rating': self._rating,
       'country': self._country,

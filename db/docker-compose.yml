@@ -1,0 +1,14 @@
+version: '3' # This can be changed to the latest
+services:
+  database:
+    image: 'mongo'
+    container_name: 'amazon-scraper-db' # Changable
+    environment: 
+      - MONGO_INITDB_DATABASE=amazon-scraper-db # Changable
+      - MONGO_INITDB_ROOT_USERNAME=username # Changable
+      - MONGO_INITDB_ROOT_PASSWORD=password  # Changable
+    volumes:
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+      - ./mongo-volume:/data/db # ~Changable
+    ports:
+      - '27017-27019:27017-27019'
